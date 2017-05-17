@@ -2,101 +2,75 @@ from pyactor.context import set_context, create_host, interval, serve_forever
 
 
 class Group(object):
-    _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time', 'add_printer', 'print_swarm']
+    _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time', 'add_printer', 'print_swarm', 'leave']
     _ask = ['join', 'get_members']
-    _ref = ['join', 'announce', 'get_peers', 'get_sequencer']
+    _ref = ['join', 'announce', 'get_sequencer', 'get_members']
 
     def __init__(self):
         self.swarm = {}
         self.printer = None
         self.interval_reduce = None
         self.sequencer = None
+        self.n_peers = 0
+        self.sequencer = None
+        self.identifier = 0
 
     def announce(self, peer_n):
-            print peer_n, " is announcing"
-            self.swarm[peer_n] = 10
+        print peer_n.get_url(), " is announcing"
+        print self.n_peers
+        self.swarm[peer_n.get_url()] = 20
+        if self.n_peers == 1:
+            peer_n.set_sequencer(peer_n.get_url())
+            self.sequencer = peer_n
+            print peer_n.get_id(), "is the sequencer now"
+        elif self.n_peers > 1 and self.sequencer is None:
+            # If there is not a sequencer, apply bully algorithm
+            self.bully()
+        else:
+            peer_n.set_sequencer(self.sequencer)
 
-    # the key is the id ('peer1') and the value is the time remain to cut the connexion
+    def bully(self):
+        print ""
+
+    # the key is the url and the value is the time remaining to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer] = 10
+        self.swarm[peer] = 50
         print peer, "has joined"
-        self.init_start(peer)
-        return True
+        self.init_start()
+        self.n_peers += 1
+        self.identifier += 1
+        return self.identifier
 
-    def init_start(self, peer):
-        self.interval_reduce = interval(self.host, 1, self.proxy, "reduce_time", peer)
+    def init_start(self):
+        self.interval_reduce = interval(self.host, 1, self.proxy, "reduce_time")
 
     def stop_interval(self):
         self.interval_reduce.set()
 
     def leave(self, peer_n):
         try:
+            if peer_n is self.sequencer:
+                self.sequencer = None
             del self.swarm[peer_n]
-            print "Peer deleted successfully"
+            self.n_peers -= 1
+            print peer_n, "has left the group"
         except KeyError:
             print "Peer not found"
 
-    def reduce_time(self, peer):
-        if self.swarm[peer] <= 0:
-            self.leave(peer)
-            self.stop_interval()
-        else:
-            self.swarm[peer] -= 1
+    def reduce_time(self):
+        for peer_ref in self.swarm.keys():
+            if self.swarm[peer_ref] < 1:
+                self.leave(peer_ref)
+            else:
+                self.swarm[peer_ref] -= 1
 
-    def get_members(self, torrent_id):
-        peer_list = self.swarm[torrent_id].keys()
-        return peer_list
-
-    def print_swarm(self):
-        print "Hello world!"
-
-    def get_sequencer(self):
-        print ""
-        # Pasar el lider a quien lo pida
-
-    def set_sequenecer(self):
-        print ""
-        # Algoritmo del bully
-
-
-class Sequencer(object):
-
-    def get_counter(self):
-        print ""
-
-
-class Peer(Sequencer):
-    _tell = ['to_leave', 'keep_alive']
-    _ask = []
-    _ref = ['join_me', 'to_leave', 'keep_alive']
-
-    def __init__(self):
-        self.group = None
-        self.interval_reduce = None
-        self.leader = None
-
-    def join_me(self):
-        self.group.join(self.proxy)
-
-    def process_message(self):
-        print ""
-
-    def start_announcing(self):
-        self.interval_reduce = interval(self.host, 3, self.proxy, "keep_alive")
-
-    def to_leave(self):
-        self.interval_reduce.set()
-        self.group.leave(self)
-
-    def keep_alive(self):
-        self.group.announce(self)
+    def get_members(self):
+        print self.swarm.keys()
+        return self.swarm.keys()
 
 if __name__ == "__main__":
     set_context()
     h = create_host('http://127.0.0.1:1280/')
     e1 = h.spawn('group', Group)
     serve_forever()
-
-
-
