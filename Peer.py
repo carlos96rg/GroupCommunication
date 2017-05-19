@@ -49,6 +49,7 @@ class Peer(Sequencer):
     def join_me(self):
         self.identifier = self.group.join(self.url)
         print "Joined successfully"
+        print "My identifier is: ", self.identifier
         self.start_announcing()
 
     def get_id(self):
@@ -63,38 +64,37 @@ class Peer(Sequencer):
         self.group.leave(self.url)
 
     def keep_alive(self):
-        self.group.announce(self.proxy)
+        self.group.announce(self.proxy, self.identifier)
 
     def multicast(self, message):
         if self.sequencer == self.proxy:
             num = self.get_counter()
         else:
             num = self.sequencer.get_counter()
-        for peer_n in self.group.get_members():
+        for peer_n in self.group.get_members():     # get_members returns url and identifier
 
-            if peer_n is self.url:
-                self.receive(message, num)
+            if peer_n[0] is self.url:
+                self.receive(message, num, self.id)
             else:
-                print peer_n
-                peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
-                peer_ref.receive(message, num)
+                print peer_n[0]
+                peer_ref = self.host.lookup_url(peer_n[0], 'Peer', 'Peer')
+                peer_ref.receive(message, num, self.id)
         print "Message delivered to everybody"
 
-    def receive(self, msg, num):
+    def receive(self, msg, num, identifier):
         print "Message received"
         if len(self.messages) == num:
-            self.process_msg(msg)
-            print msg
+            self.process_msg(msg, identifier)
         else:
             self.waiting[num] = msg
             try:    # Look if the next message has been sent
-                self.process_msg(self.waiting[len(self.messages)-1])
+                self.process_msg(self.waiting[len(self.messages)-1], identifier)
             except KeyError:
                 pass
 
-    def process_msg(self, message):
+    def process_msg(self, message, identifier):
         self.messages.append(message)
-        print message
+        print identifier, ":", message
 
 if __name__ == "__main__":
     set_context()

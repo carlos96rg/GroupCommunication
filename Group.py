@@ -15,10 +15,10 @@ class Group(object):
         self.sequencer = None
         self.identifier = 0
 
-    def announce(self, peer_n):
+    def announce(self, peer_n, identifier):
         print peer_n.get_url(), " is announcing"
         print self.n_peers
-        self.swarm[peer_n.get_url()] = 20
+        self.swarm[peer_n.get_url(), identifier] = 20
         if self.n_peers == 1:
             peer_n.set_sequencer(peer_n.get_url())
             self.sequencer = peer_n
@@ -35,12 +35,12 @@ class Group(object):
     # the key is the url and the value is the time remaining to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer] = 50
+        self.swarm[peer, self.identifier] = 50
         print peer, "has joined"
         self.init_start()
         self.n_peers += 1
         self.identifier += 1
-        return self.identifier
+        return self.identifier-1
 
     def init_start(self):
         self.interval_reduce = interval(self.host, 1, self.proxy, "reduce_time")
