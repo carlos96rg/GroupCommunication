@@ -16,18 +16,19 @@ class Group(object):
         self.identifier = 0
 
     def announce(self, peer_n, identifier):
-        print peer_n.get_url(), " is announcing"
+        print peer_n, " is announcing"
         print self.n_peers
-        self.swarm[peer_n.get_url(), identifier] = 20
+        self.swarm[peer_n, identifier] += 15
+        peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
         if self.n_peers == 1:
-            peer_n.set_sequencer(peer_n.get_url())
+            peer_ref.set_sequencer(peer_n)
             self.sequencer = peer_n
-            print peer_n.get_id(), "is the sequencer now"
+            print peer_ref.get_id(), "is the sequencer now"
         elif self.n_peers > 1 and self.sequencer is None:
             # If there is not a sequencer, apply bully algorithm
             self.bully()
         else:
-            peer_n.set_sequencer(self.sequencer)
+            peer_ref.set_sequencer(self.sequencer)
 
     def bully(self):
         print ""
@@ -35,7 +36,7 @@ class Group(object):
     # the key is the url and the value is the time remaining to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer, self.identifier] = 50
+        self.swarm[peer, self.identifier] = 20
         print peer, "has joined"
         self.init_start()
         self.n_peers += 1
@@ -48,20 +49,22 @@ class Group(object):
     def stop_interval(self):
         self.interval_reduce.set()
 
-    def leave(self, peer_n):
+    def leave(self, peer_n, identifier):
         try:
+            print peer_n, "with identifier", identifier, "is leaving"
             if peer_n is self.sequencer:
                 self.sequencer = None
-            del self.swarm[peer_n]
+            del self.swarm[peer_n, identifier]
             self.n_peers -= 1
             print peer_n, "has left the group"
         except KeyError:
             print "Peer not found"
 
     def reduce_time(self):
+        print self.swarm
         for peer_ref in self.swarm.keys():
             if self.swarm[peer_ref] < 1:
-                self.leave(peer_ref)
+                self.leave(peer_ref[0], peer_ref[1])
             else:
                 self.swarm[peer_ref] -= 1
 
@@ -71,6 +74,6 @@ class Group(object):
 
 if __name__ == "__main__":
     set_context()
-    h = create_host('http://127.0.0.1:1280/')
-    e1 = h.spawn('group', Group)
+    host = create_host('http://127.0.0.1:1280/')
+    e1 = host.spawn('group', Group)
     serve_forever()
