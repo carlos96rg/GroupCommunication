@@ -1,6 +1,6 @@
 import unittest
 from pyactor.context import set_context, create_host, shutdown, sleep
-from groupCommunication import Group
+from groupCommunication.Group import Group
 
 
 class GroupTest(unittest.TestCase):
@@ -15,9 +15,9 @@ class GroupTest(unittest.TestCase):
 
         self.assertEqual(0, identifier)
 
-        sleep(10)
+        sleep(21)
 
-        self.assertEqual(set([]), set(group.get_members()))
+        self.assertEqual([], group.get_members())
 
         group.join('2')
         group.join('3')

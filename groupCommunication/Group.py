@@ -2,8 +2,9 @@ from pyactor.context import set_context, create_host, interval, serve_forever
 
 
 class Group(object):
-    _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time', 'add_printer', 'print_swarm', 'leave']
-    _ask = ['join', 'get_members']
+    _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time',
+             'add_printer', 'print_swarm', 'leave']
+    _ask = ['join', 'get_members', 'get_sequencer']
     _ref = ['join', 'announce', 'get_sequencer', 'get_members']
 
     def __init__(self):
@@ -18,7 +19,7 @@ class Group(object):
     def announce(self, peer_n, identifier):
         print peer_n, " is announcing"
         print self.n_peers
-        self.swarm[peer_n, identifier] += 15
+        self.swarm[peer_n, identifier] = 20
         peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
         if self.n_peers == 1:
             peer_ref.set_sequencer(peer_n)
@@ -33,7 +34,11 @@ class Group(object):
     def bully(self):
         print ""
 
-    # the key is the url and the value is the time remaining to cut the connexion
+    def get_sequencer(self):
+        return self.sequencer
+
+    # the key is the url and the value is the time remaining
+    # to cut the connexion
     def join(self, peer):
         print peer
         self.swarm[peer, self.identifier] = 20
@@ -44,7 +49,8 @@ class Group(object):
         return self.identifier-1
 
     def init_start(self):
-        self.interval_reduce = interval(self.host, 1, self.proxy, "reduce_time")
+        self.interval_reduce = interval(self.host, 1, self.proxy,
+                                        "reduce_time")
 
     def stop_interval(self):
         self.interval_reduce.set()

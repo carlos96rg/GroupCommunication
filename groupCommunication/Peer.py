@@ -1,39 +1,27 @@
 from pyactor.context import set_context, create_host, sleep, shutdown, interval
 
 
-class Sequencer(object):
-    _ask = ['get_counter']
-
-    def __init__(self):
-        self.count = 0
-
-    def get_counter(self):
-        print self.count
-        self.count += 1
-        return self.count - 1
-
-
-class Peer(Sequencer):
+class Peer(object):
 
     _tell = ['print_messages', 'set_sequencer', 'start_announcing', 'to_leave',
              'define_group', 'process_msg', 'keep_alive', 'receive',
              'print_count', 'receive_ack']
 
-    _ask = Sequencer._ask + ['join_me', 'get_id', 'get_url', 'multicast',
-                             'get_identifier', 'get_sequencer']
+    _ask = ['join_me', 'get_id', 'get_url', 'multicast',
+            'get_identifier', 'get_sequencer']
 
-    _ref = ['multicast', 'join_me', 'start_announcing', 'keep_alive', 'set_sequencer'
-            'to_leave', 'define_group', 'set_sequencer', 'get_url', 'get_sequencer',
-            'receive_ack']
+    _ref = ['multicast', 'join_me', 'start_announcing', 'keep_alive',
+            'set_sequencer', 'to_leave', 'define_group', 'set_sequencer',
+            'get_url', 'get_sequencer', 'receive_ack']
 
     def __init__(self):
-        super(Peer, self).__init__()
         self.group = None
         self.interval_reduce = None
         self.sequencer = None
         self.count = 0
         self.messages = []
-        self.waiting = {}   # Where we will keep the messages that are not ready to be received
+        self.waiting = {}
+        # Where we will keep the messages that are not ready to be received
         self.identifier = None
 
     def print_messages(self):
@@ -41,15 +29,9 @@ class Peer(Sequencer):
 
     def get_url(self):
         return self.url
-    
-    def get_sequencer(self):
-        return self.sequencer
 
     def define_group(self, group):
         self.group = group
-
-    def set_sequencer(self, seq):
-        self.sequencer = self.host.lookup_url(seq, 'Peer', 'Peer')
 
     def join_me(self):
         self.identifier = self.group.join(self.url)
@@ -60,7 +42,7 @@ class Peer(Sequencer):
 
     def get_id(self):
         return self.id
-   
+
     def get_identifier(self):
         return self.identifier
 
@@ -76,12 +58,79 @@ class Peer(Sequencer):
     def keep_alive(self):
         self.group.announce(self.url, self.identifier)
 
+
+class Sequencer(Peer):
+
+    _tell = Peer._tell + ['process_msg', 'receive']
+    _ask = Peer._ask + ['get_counter', 'multicast']
+    _ref = Peer._ref + ['multicast']
+
+    def __init__(self):
+        super(Sequencer, self).__init__()
+        self.count = 0
+
+    def get_sequencer(self):
+        return self.sequencer
+
+    def set_sequencer(self, seq):
+        self.sequencer = self.host.lookup_url(seq, 'Sequencer', 'Peer')
+
+    def get_counter(self):
+        print self.count
+        self.count += 1
+        return self.count - 1
+
     def multicast(self, message):
+        print self.sequencer
         if self.sequencer == self.proxy:
             num = self.get_counter()
         else:
             num = self.sequencer.get_counter()
-        for peer_n in self.group.get_members():     # get_members returns url and identifier
+        for peer_n in self.group.get_members():
+            if peer_n[0] is self.url:
+                self.receive(message, num)
+            else:
+                print peer_n[0]
+                peer_ref = self.host.lookup_url(peer_n[0], 'Peer', 'Peer')
+                peer_ref.receive(message, num, self.id)
+        print "Message delivered to everybody"
+
+    def receive(self, message, num, sender):
+        print "Message received"
+        if len(self.messages) == num:
+            self.process_msg(message, sender)
+        else:
+            self.waiting[num] = message
+            try:
+                self.process_msg(self.waiting[len(self.messages) - 1], sender)
+            except KeyError:
+                pass
+
+    def process_msg(self, message, sender):
+            self.messages.append(message)
+            print sender, ":", message+"\n:"
+
+
+class Lamport(Peer):
+    _ask = Peer._ask + ['multicast']
+    _tell = Peer._tell + ['set_sequencer', 'to_leave', 'process_msg',
+                          'receive', 'receive_ack']
+    _ref = Peer._ref + ['multicast', 'set_sequencer', 'set_sequencer',
+                        'receive_ack']
+
+    def __init__(self):
+        super(Lamport, self).__init__()
+        self.count = 0
+        # Where we will keep the messages that are not ready to be received
+        self.identifier = None
+
+    def set_sequencer(self, seq):
+        self.sequencer = self.host.lookup_url(seq, 'Lamport', 'Peer')
+
+    def multicast(self, message):
+        num = self.count
+        for peer_n in self.group.get_members():
+            # get_members returns url and identifier
             if peer_n[0] is self.url:
                 self.receive(message, num)
             else:
@@ -116,16 +165,20 @@ class Peer(Sequencer):
         print "And now my timestamp is:", self.count
         acks = self.waiting[message, timestamp]
         acks.append(self.count)
-        self.waiting[message, timestamp] = acks    # We keep the message and the timestamp
+        self.waiting[message, timestamp] = acks
+        # We keep the message and the timestamp
         print "I have this acks: ", len(acks)
-        if len(acks) < len(self.group.get_members()):  # If we can process the message
+        if len(acks) < len(self.group.get_members()):
+            # If we can process the message
             pass
         else:
             self.process_msg(message, sender)
-            del self.waiting[message, timestamp]    # Leave the waiting queue
+            del self.waiting[message, timestamp]
+            # Leave the waiting queue
 
     def process_msg(self, message, sender):
-        if message is not None:     # If it is not None, then message[0] = message message[1] = identifier
+        if message is not None:
+            # Message[0] = message message[1] = identifier
             self.messages.append(message)
             print sender, ":", message+"\n:"
 
@@ -135,7 +188,11 @@ if __name__ == "__main__":
     host = create_host('http://127.0.0.1:'+port)
     print host
     n_peer = raw_input("Write this peer's id:")
-    peer = host.spawn(n_peer, Peer)
+    kind = int(raw_input("Choose one type:\n1- Sequencer\t2- Lamport\n"))
+    if kind == 1:
+        peer = host.spawn(n_peer, Sequencer)
+    elif kind == 2:
+        peer = host.spawn(n_peer, Lamport)
     e1 = host.lookup_url('http://127.0.0.1:1280/group', 'Group', 'Group')
     peer.define_group(e1)
     print peer.join_me()
@@ -156,7 +213,7 @@ if __name__ == "__main__":
     # Message 5
     msg = raw_input(": ")
     peer.multicast(msg)
-    print "----------------------------------- leaving the group------------------------"
+    print "----------------------- leaving the group---------------------"
     sleep(2)
     peer.to_leave()
     sleep(2)

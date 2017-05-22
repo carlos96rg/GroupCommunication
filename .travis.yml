@@ -9,7 +9,7 @@ install:
     - pip install codecov
 script:
     - find ./groupCommunication -name \*.py -exec pycodestyle {} +
-    - nosetests -vx --with-coverage --cover-erase --cover-package=GroupCommunication
+    - nosetests -v --with-coverage --cover-erase --cover-package=groupCommunication
 after_success:
     - coveralls
     - codecov

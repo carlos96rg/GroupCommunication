@@ -3,4 +3,3 @@ nose-cov
 pep8
 gevent
 pyactor
-plotly
