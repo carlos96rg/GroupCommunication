@@ -16,7 +16,6 @@ class GroupTest(unittest.TestCase):
         self.assertEqual(0, identifier)
 
         sleep(21)
-
         self.assertEqual([], group.get_members())
 
         group.join('2')

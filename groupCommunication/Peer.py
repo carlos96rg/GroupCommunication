@@ -47,7 +47,6 @@ class Peer(object):
         return self.identifier
 
     def start_announcing(self):
-        print "Now I'm in"
         self.interval_reduce = interval(self.host, 5, self.proxy, "keep_alive")
 
     def to_leave(self):
@@ -76,12 +75,10 @@ class Sequencer(Peer):
         self.sequencer = self.host.lookup_url(seq, 'Sequencer', 'Peer')
 
     def get_counter(self):
-        print self.count
         self.count += 1
         return self.count - 1
 
     def multicast(self, message):
-        print self.sequencer
         if self.sequencer == self.proxy:
             num = self.get_counter()
         else:
@@ -90,10 +87,9 @@ class Sequencer(Peer):
             if peer_n[0] is self.url:
                 self.receive(message, num)
             else:
-                print peer_n[0]
-                peer_ref = self.host.lookup_url(peer_n[0], 'Peer', 'Peer')
+                peer_ref = self.host.lookup_url(peer_n[0], 'Sequencer', 'Peer')
                 peer_ref.receive(message, num, self.id)
-        print "Message delivered to everybody"
+        # print "Message delivered to everybody"
 
     def receive(self, message, num, sender):
         print "Message received"
@@ -123,6 +119,7 @@ class Lamport(Peer):
         self.count = 0
         # Where we will keep the messages that are not ready to be received
         self.identifier = None
+        self.queue = []
 
     def set_sequencer(self, seq):
         self.sequencer = self.host.lookup_url(seq, 'Lamport', 'Peer')
@@ -137,14 +134,15 @@ class Lamport(Peer):
                 print peer_n[0]
                 peer_ref = self.host.lookup_url(peer_n[0], 'Peer', 'Peer')
                 peer_ref.receive(message, num, self.id)
-        print "Message delivered to everybody"
+        # print "Message delivered to everybody"
 
     def receive(self, message, num, sender):
-        print "Message received"
+        self.queue.append(message)
+        # print "Message received"
         if self.count < num:    # Get the biggest number as your timestamp
             self.count = num
         self.count += 1
-        print "My timestamp now is: ", self.count
+        # print "My timestamp now is: ", self.count
         # First, send ack to myself
         ack = list()
         ack.append(self.count)
@@ -162,18 +160,20 @@ class Lamport(Peer):
     def receive_ack(self, message, ack, timestamp, sender):
         if self.count < ack:    # Get the biggest number as your timestamp
             self.count = ack
-        print "And now my timestamp is:", self.count
+        # print "And now my timestamp is:", self.count
         acks = self.waiting[message, timestamp]
         acks.append(self.count)
         self.waiting[message, timestamp] = acks
         # We keep the message and the timestamp
-        print "I have this acks: ", len(acks)
+        # print "I have this acks: ", len(acks)
         if len(acks) < len(self.group.get_members()):
             # If we can process the message
             pass
         else:
-            self.process_msg(message, sender)
-            del self.waiting[message, timestamp]
+            if self.queue is not None and self.queue[0] == message:
+                self.process_msg(message, sender)
+                del self.waiting[message, timestamp]
+                self.queue.remove(message)
             # Leave the waiting queue
 
     def process_msg(self, message, sender):
@@ -181,6 +181,7 @@ class Lamport(Peer):
             # Message[0] = message message[1] = identifier
             self.messages.append(message)
             print sender, ":", message+"\n:"
+
 
 if __name__ == "__main__":
     set_context()
