@@ -3,8 +3,9 @@ from pyactor.context import set_context, create_host, interval, serve_forever
 
 class Group(object):
     _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time',
-             'add_printer', 'print_swarm', 'leave']
-    _ask = ['join', 'get_members', 'get_sequencer']
+             'add_printer', 'print_swarm', 'leave', 'set_sequencer', 'election_started',
+             'election_finished']
+    _ask = ['join', 'get_members', 'get_sequencer', 'get_election_in_process']
     _ref = ['join', 'announce', 'get_sequencer', 'get_members']
 
     def __init__(self):
@@ -15,27 +16,43 @@ class Group(object):
         self.n_peers = 0
         self.sequencer = None
         self.identifier = 0
+        self.election_in_process = False
 
     def announce(self, peer_n, identifier):
         print peer_n, " is announcing"
         print self.n_peers
-        self.swarm[peer_n, identifier] = 20
+        self.swarm[peer_n, identifier] = 25
         peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
         if self.n_peers == 1:
             peer_ref.set_sequencer(peer_n)
             self.sequencer = peer_n
             print peer_ref.get_id(), "is the sequencer now"
         else:
+            print self.sequencer, "is the sequencer"
             peer_ref.set_sequencer(self.sequencer)
 
     def get_sequencer(self):
         return self.sequencer
 
+    def set_sequencer(self, seq):
+        self.sequencer = seq
+        print "## Group: the new sequencer is ", seq
+
+    #election_in_process avoids the removal of members while an election is happening
+    def election_started(self):
+        self.election_in_process = True
+    
+    def election_finished(self):
+        self.election_in_process = False
+        
+    def get_election_in_process(self):
+        return self.election_in_process
+
     # the key is the url and the value is the time remaining
     # to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer, self.identifier] = 20
+        self.swarm[peer, self.identifier] = 25
         print peer, "has joined"
         self.init_start()
         self.n_peers += 1
@@ -61,12 +78,15 @@ class Group(object):
             print "Peer not found"
 
     def reduce_time(self):
-        print self.swarm
-        for peer_ref in self.swarm.keys():
-            if self.swarm[peer_ref] < 1:
-                self.leave(peer_ref[0], peer_ref[1])
-            else:
-                self.swarm[peer_ref] -= 1
+        if self.election_in_process == False:
+            print self.swarm
+            for peer_ref in self.swarm.keys():
+                if self.swarm[peer_ref] < 1:
+                    self.leave(peer_ref[0], peer_ref[1])
+                else:
+                    self.swarm[peer_ref] -= 1
+        else:
+             print "Election in process..."
 
     def get_members(self):
         print self.swarm.keys()
