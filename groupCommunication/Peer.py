@@ -7,12 +7,10 @@ class Peer(object):
              'define_group', 'process_msg', 'keep_alive', 'receive',
              'print_count', 'receive_ack']
 
-    _ask = ['join_me', 'get_id', 'get_url', 'multicast',
-            'get_identifier', 'get_sequencer']
+    _ask = ['join_me', 'get_id', 'get_url', 'get_identifier', 'get_sequencer']
 
-    _ref = ['multicast', 'join_me', 'start_announcing', 'keep_alive',
-            'set_sequencer', 'to_leave', 'define_group', 'set_sequencer',
-            'get_url', 'get_sequencer', 'receive_ack']
+    _ref = ['join_me', 'start_announcing', 'keep_alive', 'set_sequencer',
+            'to_leave', 'define_group', 'get_url', 'get_sequencer']
 
     def __init__(self):
         self.group = None
@@ -60,8 +58,8 @@ class Peer(object):
 
 class Sequencer(Peer):
 
-    _tell = Peer._tell + ['process_msg', 'receive']
-    _ask = Peer._ask + ['get_counter', 'multicast']
+    _tell = Peer._tell + ['process_msg', 'receive', 'multicast']
+    _ask = Peer._ask + ['get_counter']
     _ref = Peer._ref + ['multicast']
 
     def __init__(self):
@@ -83,6 +81,8 @@ class Sequencer(Peer):
             num = self.get_counter()
         else:
             num = self.sequencer.get_counter()
+        if self.identifier == 1:
+            sleep(5)
         for peer_n in self.group.get_members():
             if peer_n[0] is self.url:
                 self.receive(message, num)
@@ -95,12 +95,17 @@ class Sequencer(Peer):
         print "Message received"
         if len(self.messages) == num:
             self.process_msg(message, sender)
-        else:
-            self.waiting[num] = message
             try:
-                self.process_msg(self.waiting[len(self.messages) - 1], sender)
+                for key in self.waiting.keys():
+                    values = self.waiting[key]
+                    key_message = values[0]
+                    sndr = values[1]
+                    self.process_msg(key_message, sndr)
+                    del self.waiting[key]
             except KeyError:
                 pass
+        else:
+            self.waiting[num] = list([message, sender])
 
     def process_msg(self, message, sender):
             self.messages.append(message)
@@ -108,18 +113,19 @@ class Sequencer(Peer):
 
 
 class Lamport(Peer):
-    _ask = Peer._ask + ['multicast']
+    _ask = Peer._ask + []
     _tell = Peer._tell + ['set_sequencer', 'to_leave', 'process_msg',
-                          'receive', 'receive_ack']
+                          'receive', 'receive_ack', 'multicast',
+                          'deliver_queue']
     _ref = Peer._ref + ['multicast', 'set_sequencer', 'set_sequencer',
                         'receive_ack']
 
     def __init__(self):
         super(Lamport, self).__init__()
         self.count = 0
-        # Where we will keep the messages that are not ready to be received
         self.identifier = None
         self.queue = []
+        # Where we will keep the messages that are not ready to be received
 
     def set_sequencer(self, seq):
         self.sequencer = self.host.lookup_url(seq, 'Lamport', 'Peer')
@@ -132,13 +138,15 @@ class Lamport(Peer):
                 self.receive(message, num)
             else:
                 print peer_n[0]
-                peer_ref = self.host.lookup_url(peer_n[0], 'Peer', 'Peer')
+                peer_ref = self.host.lookup_url(peer_n[0], 'Lamport', 'Peer')
                 peer_ref.receive(message, num, self.id)
         # print "Message delivered to everybody"
 
     def receive(self, message, num, sender):
-        self.queue.append(message)
-        # print "Message received"
+        if self.identifier == 2 and num == 2:
+            sleep(5)        # Force a delay for the 3rd peer and second message
+        self.queue.append(tuple([message, num, sender]))
+        print self.queue
         if self.count < num:    # Get the biggest number as your timestamp
             self.count = num
         self.count += 1
@@ -154,31 +162,47 @@ class Lamport(Peer):
                 if peer_url[0] == self.url:
                     pass
                 else:
-                    people = self.host.lookup_url(peer_url[0], 'Peer', 'Peer')
-                    people.receive_ack(message, self.count, num, sender)
+                    people = self.host.lookup_url(peer_url[0],
+                                                  'Lamport', 'Peer')
+                    people.receive_ack(message, self.count, num)
 
-    def receive_ack(self, message, ack, timestamp, sender):
-        if self.count < ack:    # Get the biggest number as your timestamp
-            self.count = ack
-        # print "And now my timestamp is:", self.count
+    def receive_ack(self, message, ack, timestamp):
         acks = self.waiting[message, timestamp]
         acks.append(self.count)
         self.waiting[message, timestamp] = acks
+        if self.count < ack:    # Get the biggest number as your timestamp
+            self.count = ack
+        self.deliver_queue()
+        # print "And now my timestamp is:", self.count
         # We keep the message and the timestamp
         # print "I have this acks: ", len(acks)
-        if len(acks) < len(self.group.get_members()):
-            # If we can process the message
-            pass
-        else:
-            if self.queue is not None and self.queue[0] == message:
-                self.process_msg(message, sender)
-                del self.waiting[message, timestamp]
-                self.queue.remove(message)
-            # Leave the waiting queue
+
+    def deliver_queue(self):
+        proceed = False
+        try:
+            while self.queue and not proceed:
+                first = self.queue[0]
+                message = first[0]  # Look if the first element has
+                timestamp = first[1]   # All the acks
+                sender = first[2]
+                print "message:", message
+                print "timestamp:", timestamp
+                print "sender:", sender
+                acks = self.waiting[message, timestamp]
+                print "I have this acks: ", len(acks)
+                if len(acks) == len(self.group.get_members()):
+                    # If we can process the message
+                    self.process_msg(message, sender)
+                    del self.waiting[message, timestamp]
+                    del self.queue[0]
+                    # Leave the waiting queue
+                else:
+                    proceed = True
+        except IndexError:
+            print "There is no message in the waiting queue"
 
     def process_msg(self, message, sender):
         if message is not None:
-            # Message[0] = message message[1] = identifier
             self.messages.append(message)
             print sender, ":", message+"\n:"
 

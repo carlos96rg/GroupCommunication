@@ -25,14 +25,8 @@ class Group(object):
             peer_ref.set_sequencer(peer_n)
             self.sequencer = peer_n
             print peer_ref.get_id(), "is the sequencer now"
-        elif self.n_peers > 1 and self.sequencer is None:
-            # If there is not a sequencer, apply bully algorithm
-            self.bully()
         else:
             peer_ref.set_sequencer(self.sequencer)
-
-    def bully(self):
-        print ""
 
     def get_sequencer(self):
         return self.sequencer
