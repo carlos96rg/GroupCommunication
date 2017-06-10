@@ -58,9 +58,9 @@ class Peer(object):
 
 class Sequencer(Peer):
 
-    _tell = Peer._tell + ['process_msg', 'receive', 'multicast', 'multicast_bully',             'multicast_delay']
+    _tell = Peer._tell + ['process_msg', 'receive', 'multicast', 'multicast_delay', 'set_counter']
     _ask = Peer._ask + ['get_counter', 'initiate_election']
-    _ref = Peer._ref + ['multicast', 'initiate_election', 'multicast_bully','multicast_delay']
+    _ref = Peer._ref + ['multicast', 'initiate_election','multicast_delay']
 
     def __init__(self):
         super(Sequencer, self).__init__()
@@ -74,22 +74,13 @@ class Sequencer(Peer):
 
     def get_counter(self):
         self.count += 1
+        #Sends the counter to the group to withstand sequencer failure 
+        self.group.set_count(self.count)
         return self.count - 1
-
-    def multicast(self, message):
-        if self.sequencer == self.proxy:
-            num = self.get_counter()
-        else:
-            num = self.sequencer.get_counter()
-        #if self.identifier == 1:
-        #    sleep(5)
-        for peer_n in self.group.get_members():
-            if peer_n[0] is self.url:
-                self.receive(message, num)
-            else:
-                peer_ref = self.host.lookup_url(peer_n[0], 'Sequencer', 'Peer')
-                peer_ref.receive(message, num, self.id)
-        print "Message delivered to everybody"
+    
+    def set_counter(self, count):
+        self.count = count
+        print "Count set to: ", self.count
 
     def multicast_delay(self, message):
         print self.sequencer
@@ -110,7 +101,16 @@ class Sequencer(Peer):
 
     def receive(self, message, num, sender):
         print "Message received"
-        if len(self.messages) == num:
+        print "COUNT: ", self.count
+        print "NUM: ", num
+        number = 0
+        if self.proxy == self.sequencer: 
+           print "inside"
+           number = num
+        else:
+           number = num - self.count
+
+        if len(self.messages) == number:
             self.process_msg(message, sender)
             try:
                 for key in self.waiting.keys():
@@ -143,6 +143,10 @@ class Sequencer(Peer):
         for member in members:
             if member[0] == self.url:
                 self.sequencer = self.host.lookup_url(winner[0], 'Sequencer', 'Peer')
+                #Sends the last counter to the new sequencer
+                counter = self.group.get_count()
+                print "election counter = ", counter
+                self.sequencer.set_counter(counter)
             else:
                  peer_ref = self.host.lookup_url(member[0], 'Sequencer', 'Peer')
                  peer_ref.set_sequencer(winner[0])
@@ -152,9 +156,10 @@ class Sequencer(Peer):
         self.group.election_finished()
 
     # Supports sequencer failure using bully election algorithm
-    def multicast_bully(self, message):
+    def multicast(self, message):
         if self.sequencer == self.proxy:
             num = self.get_counter()
+            print "SEQ: counter = ", num
         else:
             try:
                 num = self.sequencer.get_counter(timeout=3)
@@ -163,7 +168,7 @@ class Sequencer(Peer):
                 #sleep(self.identifier)  # Sleep inversely proportional to identifier
                 print "Election in process", election_in_process
                 if self.group.get_election_in_process() is False:
-                    #election_in_process is True
+                    #election_in_process = True
                     self.group.election_started()
                     print "HEYY",self.group.get_election_in_process()
                     self.initiate_election()
@@ -308,7 +313,7 @@ if __name__ == "__main__":
             peer.multicast_delay(msg)
 
         elif msg != "exit":
-            peer.multicast_bully(msg, timeout=50)
+            peer.multicast(msg, timeout=50)
         elif msg == "exit":
             exit = True
 

@@ -4,8 +4,8 @@ from pyactor.context import set_context, create_host, interval, serve_forever
 class Group(object):
     _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time',
              'add_printer', 'print_swarm', 'leave', 'set_sequencer', 'election_started',
-             'election_finished']
-    _ask = ['join', 'get_members', 'get_sequencer', 'get_election_in_process']
+             'election_finished', 'set_count']
+    _ask = ['join', 'get_members', 'get_sequencer', 'get_election_in_process', 'get_count']
     _ref = ['join', 'announce', 'get_sequencer', 'get_members']
 
     def __init__(self):
@@ -17,6 +17,8 @@ class Group(object):
         self.sequencer = None
         self.identifier = 0
         self.election_in_process = False
+        #Used in bully
+        self.count = 0
 
     def announce(self, peer_n, identifier):
         print peer_n, " is announcing"
@@ -54,9 +56,11 @@ class Group(object):
         print peer
         self.swarm[peer, self.identifier] = 25
         print peer, "has joined"
-        self.init_start()
         self.n_peers += 1
         self.identifier += 1
+        #Allow new peers to avoid waiting for messages sent before
+        peer_ref = self.host.lookup_url(peer, 'Sequencer', 'Peer')
+        peer_ref.set_counter(self.count)
         return self.identifier-1
 
     def init_start(self):
@@ -91,10 +95,16 @@ class Group(object):
     def get_members(self):
         print self.swarm.keys()
         return self.swarm.keys()
-
+    
+    def set_count(self, count):
+        self.count = count
+        
+    def get_count(self):
+        return self.count
 
 if __name__ == "__main__":
     set_context()
     host = create_host('http://127.0.0.1:1280/')
     e1 = host.spawn('group', Group)
+    e1.init_start()
     serve_forever()
