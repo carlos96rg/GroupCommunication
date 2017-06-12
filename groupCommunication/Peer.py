@@ -79,11 +79,10 @@ class Sequencer(Peer):
     _tell = Peer._tell + ['process_msg',
                           'receive',
                           'multicast',
-                          'multicast_delay',
                           'set_counter',
                           'set_n_messages']
     _ask = Peer._ask + ['get_counter', 'initiate_election']
-    _ref = Peer._ref + ['multicast', 'initiate_election', 'multicast_delay']
+    _ref = Peer._ref + ['multicast', 'initiate_election']
 
     def __init__(self):
         super(Sequencer, self).__init__()
