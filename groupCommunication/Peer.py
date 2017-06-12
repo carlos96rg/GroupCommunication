@@ -2,6 +2,7 @@ from pyactor.context import set_context, create_host, sleep, shutdown, interval
 from pyactor.exceptions import TimeoutError
 from random import uniform
 
+
 class Peer(object):
 
     _tell = ['print_messages', 'set_sequencer', 'start_announcing', 'to_leave',
@@ -22,7 +23,7 @@ class Peer(object):
         self.waiting = {}
         # Where we will keep the messages that are not ready to be received
         self.identifier = None
-        #For testing purposes
+        # For testing purposes
         self.delay = False
 
     def print_messages(self):
@@ -67,9 +68,14 @@ class Peer(object):
 
 class Sequencer(Peer):
 
-    _tell = Peer._tell + ['process_msg', 'receive', 'multicast', 'multicast_delay', 'set_counter', 'set_n_messages']
+    _tell = Peer._tell + ['process_msg',
+                          'receive',
+                          'multicast',
+                          'multicast_delay',
+                          'set_counter',
+                          'set_n_messages']
     _ask = Peer._ask + ['get_counter', 'initiate_election']
-    _ref = Peer._ref + ['multicast', 'initiate_election','multicast_delay']
+    _ref = Peer._ref + ['multicast', 'initiate_election', 'multicast_delay']
 
     def __init__(self):
         super(Sequencer, self).__init__()
@@ -77,7 +83,7 @@ class Sequencer(Peer):
         self.n_messages = 0
 
     def set_n_messages(self, number_of_messages):
-        self.n_messages = number_of_messages        
+        self.n_messages = number_of_messages
 
     def get_sequencer(self):
         return self.sequencer
@@ -87,11 +93,11 @@ class Sequencer(Peer):
 
     def get_counter(self):
         self.count += 1
-        #Sends the counter to the group to withstand sequencer failure 
+        # Sends the counter to the group to withstand sequencer failure
         self.group.set_count(self.count)
         print "GET_COUNTER: ", self.count
         return self.count - 1
-    
+
     def set_counter(self, count):
         self.count = count
         print "Count set to: ", self.count
@@ -102,7 +108,7 @@ class Sequencer(Peer):
         print "Joined successfully"
         print "My identifier is: ", self.identifier
         self.start_announcing()
-        #Allow new peers to avoid waiting for messages sent before    
+        # Allow new peers to avoid waiting for messages sent before
         self.count = self.group.get_count()
         return self.identifier
 
@@ -128,12 +134,12 @@ class Sequencer(Peer):
         print "COUNT: ", self.count
         print "NUM: ", num
         number = 0
-        if self.proxy == self.sequencer: 
-           number = num
+        if self.proxy == self.sequencer:
+            number = num
         else:
-           number = num - self.count
+            number = num - self.count
         print "N_MESSAGES = ", self.n_messages
-        print "NUMBER = ", self.n_messages       
+        print "NUMBER = ", self.n_messages
         if self.n_messages == number:
             self.process_msg(message, sender)
             try:
@@ -147,16 +153,16 @@ class Sequencer(Peer):
                 pass
         else:
             self.waiting[num] = list([message, sender])
-        print "WAITING ",self.waiting
-        print "MESSAGES ",self.messages
+        print "WAITING ", self.waiting
+        print "MESSAGES ", self.messages
 
     def process_msg(self, message, sender):
-            self.messages.append(message)
-            self.n_messages += 1
-            #Informs the group about the number of processed messages
-            if self.proxy == self.sequencer:
-               self.group.set_n_messages(self.n_messages)
-            print sender, ":", message+"\n:"
+        self.messages.append(message)
+        self.n_messages += 1
+        # Informs the group about the number of processed messages
+        if self.proxy == self.sequencer:
+            self.group.set_n_messages(self.n_messages)
+        print sender, ":", message + "\n:"
 
     # If the sequencer has fallen a new one is chosen
     def initiate_election(self):
@@ -170,8 +176,10 @@ class Sequencer(Peer):
 
         for member in members:
             if member[0] == self.url:
-                self.sequencer = self.host.lookup_url(winner[0], 'Sequencer', 'Peer')
-                #Sends the last counter and number of messages to the new sequencer
+                self.sequencer = self.host.lookup_url(
+                    winner[0], 'Sequencer', 'Peer')
+                # Sends the last counter and number of messages to the new
+                # sequencer
                 counter = self.group.get_count()
                 messages = self.group.get_n_messages()
                 print "election counter = ", counter
@@ -184,9 +192,9 @@ class Sequencer(Peer):
             else:
                 peer_ref = self.host.lookup_url(member[0], 'Sequencer', 'Peer')
                 peer_ref.set_sequencer(winner[0])
-           
+
         self.group.set_sequencer(winner[0])
-        #election_in_process is False
+        # election_in_process is False
         self.group.election_finished()
 
     # Supports sequencer failure using bully election algorithm
@@ -199,26 +207,28 @@ class Sequencer(Peer):
                 num = self.sequencer.get_counter(timeout=3)
             except TimeoutError as e:
                 print "The sequencer has fallen"
-                #In case more than one member detects the failure at the same time
-                sleep(uniform(0.1,0.5))
+                # In case more than one member detects the failure at the same
+                # time
+                sleep(uniform(0.1, 0.5))
                 if self.group.get_election_in_process() is False:
-                    #election_in_process = True
+                    # election_in_process = True
                     self.group.election_started()
                     self.initiate_election()
-                    #self.multicast_bully(message)
+                    # self.multicast_bully(message)
                 else:
-                    #Wait while the election is happening
+                    # Wait while the election is happening
                     sleep(5)
                 if self.sequencer == self.proxy:
                     num = self.get_counter()
                 else:
                     num = self.sequencer.get_counter()
-        if self.delay == True:
+        if self.delay is True:
             print "WAITING..."
             sleep(5)
             print "AWAKEN"
 
-        for peer_n in self.group.get_members():  # get_members returns url and identifier
+        for peer_n in self.group.get_members(
+        ):  # get_members returns url and identifier
             if peer_n[0] is self.url:
                 self.receive(message, num)
             else:
@@ -226,7 +236,7 @@ class Sequencer(Peer):
                 peer_ref = self.host.lookup_url(peer_n[0], 'Sequencer', 'Peer')
                 peer_ref.receive(message, num, self.id)
         print "Message delivered to everybody"
-        
+
 
 class Lamport(Peer):
     _ask = Peer._ask + []
@@ -259,7 +269,7 @@ class Lamport(Peer):
         # print "Message delivered to everybody"
 
     def receive(self, message, num, sender):
-        if self.delay == True:
+        if self.delay is True:
             sleep(5)        # Force a delay for the 3rd peer and second message
         self.queue.append(tuple([message, num, sender]))
         print self.queue
@@ -281,8 +291,8 @@ class Lamport(Peer):
                     people = self.host.lookup_url(peer_url[0],
                                                   'Lamport', 'Peer')
                     people.receive_ack(message, self.count, num)
-        print "WAITING ",self.waiting
-        print "MESSAGES ",self.messages
+        print "WAITING ", self.waiting
+        print "MESSAGES ", self.messages
 
     def receive_ack(self, message, ack, timestamp):
         acks = self.waiting[message, timestamp]
@@ -322,13 +332,13 @@ class Lamport(Peer):
     def process_msg(self, message, sender):
         if message is not None:
             self.messages.append(message)
-            print sender, ":", message+"\n:"
+            print sender, ":", message + "\n:"
 
 
 if __name__ == "__main__":
     set_context()
     port = raw_input("Insert your port :")
-    host = create_host('http://127.0.0.1:'+port)
+    host = create_host('http://127.0.0.1:' + port)
     print host
     n_peer = raw_input("Write this peer's id:")
     kind = int(raw_input("Choose one type:\n1- Sequencer\t2- Lamport\n"))

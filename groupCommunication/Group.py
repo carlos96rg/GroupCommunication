@@ -1,10 +1,18 @@
 from pyactor.context import set_context, create_host, interval, serve_forever
 
+
 class Group(object):
     _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time',
-             'add_printer', 'print_swarm', 'leave', 'set_sequencer', 'election_started',
-             'election_finished', 'set_count', 'set_n_messages']
-    _ask = ['join', 'get_members', 'get_sequencer', 'get_election_in_process', 'get_count', 'get_n_messages']
+             'add_printer', 'print_swarm', 'leave', 'set_sequencer',
+             'election_started', 'election_finished', 'set_count',
+             'set_n_messages']
+    _ask = [
+        'join',
+        'get_members',
+        'get_sequencer',
+        'get_election_in_process',
+        'get_count',
+        'get_n_messages']
     _ref = ['join', 'announce', 'get_sequencer', 'get_members']
 
     def __init__(self):
@@ -16,7 +24,7 @@ class Group(object):
         self.sequencer = None
         self.identifier = 0
         self.election_in_process = False
-        #Used in bully
+        # Used in bully
         self.count = 0
         self.n_messages = 0
 
@@ -40,13 +48,14 @@ class Group(object):
         self.sequencer = seq
         print "## Group: the new sequencer is ", seq
 
-    #election_in_process avoids the removal of members while an election is happening
+    # election_in_process avoids the removal of members while an election is
+    # happening
     def election_started(self):
         self.election_in_process = True
-    
+
     def election_finished(self):
         self.election_in_process = False
-        
+
     def get_election_in_process(self):
         return self.election_in_process
 
@@ -57,8 +66,8 @@ class Group(object):
         self.swarm[peer, self.identifier] = 25
         print peer, "has joined"
         self.n_peers += 1
-        self.identifier += 1                 
-        return self.identifier-1
+        self.identifier += 1
+        return self.identifier - 1
 
     def init_start(self):
         self.interval_reduce = interval(self.host, 1, self.proxy,
@@ -79,7 +88,7 @@ class Group(object):
             print "Peer not found"
 
     def reduce_time(self):
-        if self.election_in_process == False:
+        if self.election_in_process is False:
             print self.swarm
             for peer_ref in self.swarm.keys():
                 if self.swarm[peer_ref] < 1:
@@ -87,23 +96,24 @@ class Group(object):
                 else:
                     self.swarm[peer_ref] -= 1
         else:
-             print "Election in process..."
+            print "Election in process..."
 
     def get_members(self):
         print self.swarm.keys()
         return self.swarm.keys()
-    
+
     def set_count(self, count):
         self.count = count
-        
+
     def get_count(self):
         return self.count
-        
+
     def set_n_messages(self, number_of_messages):
         self.n_messages = number_of_messages
-    
+
     def get_n_messages(self):
         return self.n_messages
+
 
 if __name__ == "__main__":
     set_context()
