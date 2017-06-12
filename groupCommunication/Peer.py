@@ -30,6 +30,8 @@ class Peer(object):
         print self.messages
 
     def get_url(self):
+        if self.delay is True:
+            sleep(5)
         return self.url
 
     def define_group(self, group):
@@ -55,6 +57,12 @@ class Peer(object):
         print "ready to leave: ", self.url, self.identifier
         self.group.leave(self.url, self.identifier)
         self.interval_reduce.set()
+        self.group = None
+
+    # Called if the last sequencer returns to the group without a join
+    def kill_actor(self):
+        host.stop_actor(self.id)
+        shutdown()
 
     def keep_alive(self):
         self.group.announce(self.url, self.identifier)
@@ -92,6 +100,8 @@ class Sequencer(Peer):
         self.sequencer = self.host.lookup_url(seq, 'Sequencer', 'Peer')
 
     def get_counter(self):
+        if self.delay is True:
+            sleep(20)
         self.count += 1
         # Sends the counter to the group to withstand sequencer failure
         self.group.set_count(self.count)
@@ -112,23 +122,6 @@ class Sequencer(Peer):
         self.count = self.group.get_count()
         return self.identifier
 
-    def multicast_delay(self, message):
-        print self.sequencer
-        if self.sequencer == self.proxy:
-            num = self.get_counter()
-            sleep(5)
-        else:
-            num = self.sequencer.get_counter()
-            sleep(5)
-        for peer_n in self.group.get_members():
-            if peer_n[0] is self.url:
-                self.receive(message, num)
-            else:
-                print peer_n[0]
-                peer_ref = self.host.lookup_url(peer_n[0], 'Sequencer', 'Peer')
-                peer_ref.receive(message, num, self.id)
-        print "Message delivered to everybody"
-
     def receive(self, message, num, sender):
         print "Message received"
         print "COUNT: ", self.count
@@ -139,7 +132,7 @@ class Sequencer(Peer):
         else:
             number = num - self.count
         print "N_MESSAGES = ", self.n_messages
-        print "NUMBER = ", self.n_messages
+        print "NUMBER = ", number
         if self.n_messages == number:
             self.process_msg(message, sender)
             try:
@@ -181,12 +174,11 @@ class Sequencer(Peer):
                 try:
                     # Test if the possible sequencer is alive
                     winner_ref.get_url(timeout=2)
+                    winner_alive = True
                 except TimeoutError as e:
                     "Caught it"
-                    pass
-                winner_alive = True
             i += 1
-
+        print "The winner is ", winner_ref
         counter = self.group.get_count()
         messages = self.group.get_n_messages()
         winner_url = sorted_members[i-1][0]
@@ -200,6 +192,7 @@ class Sequencer(Peer):
                     self.count = counter
                     self.n_messages = messages
                 else:
+                    self.sequencer = winner_ref
                     winner_ref.set_counter(counter)
                     winner_ref.set_n_messages(messages)
                     winner_ref.set_sequencer(winner_url)
@@ -227,10 +220,12 @@ class Sequencer(Peer):
                     # election_in_process = True
                     self.group.election_started()
                     self.initiate_election()
+                    print "im out!!"
                     # self.multicast_bully(message)
                 else:
                     # Wait while the election is happening
                     sleep(5)
+                print "My seq is ", self.sequencer
                 if self.sequencer == self.proxy:
                     num = self.get_counter()
                 else:
@@ -379,6 +374,7 @@ if __name__ == "__main__":
             peer.multicast(msg, timeout=50)
 
     print "----------------------- leaving the group---------------------"
+
     sleep(2)
     peer.to_leave()
     sleep(2)

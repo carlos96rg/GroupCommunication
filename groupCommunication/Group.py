@@ -5,7 +5,7 @@ class Group(object):
     _tell = ['announce', 'init_start', 'stop_interval', 'reduce_time',
              'add_printer', 'print_swarm', 'leave', 'set_sequencer',
              'election_started', 'election_finished', 'set_count',
-             'set_n_messages']
+             'set_n_messages', 'kill_actor']
     _ask = [
         'join',
         'get_members',
@@ -21,7 +21,6 @@ class Group(object):
         self.interval_reduce = None
         self.sequencer = None
         self.n_peers = 0
-        self.sequencer = None
         self.identifier = 0
         self.election_in_process = False
         # Used in bully
@@ -31,7 +30,13 @@ class Group(object):
     def announce(self, peer_n, identifier):
         print peer_n, " is announcing"
         print self.n_peers
-        self.swarm[peer_n, identifier] = 25
+        if (peer_n, identifier) not in self.swarm:
+            # If an inactive member returns without a join it gets removed
+            peer_ref = self.host.lookup_url(peer_n, 'Sequencer', 'Peer')
+            peer_ref.to_leave()
+            peer_ref.kill_actor()
+
+        self.swarm[peer_n, identifier] = 10
         peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
         if self.n_peers == 1:
             peer_ref.set_sequencer(peer_n)
@@ -63,7 +68,7 @@ class Group(object):
     # to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer, self.identifier] = 25
+        self.swarm[peer, self.identifier] = 10
         print peer, "has joined"
         self.n_peers += 1
         self.identifier += 1
