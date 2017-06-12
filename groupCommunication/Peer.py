@@ -168,32 +168,45 @@ class Sequencer(Peer):
     def initiate_election(self):
         print "Initiate election"
         members = self.group.get_members()
-        print "MEMBERS: ", members
-        winner = ("TEST", -1)
-        for member in members:
-            if member[1] > winner[1]:  # Get peer with larger indentifier
-                winner = member
+        # Sort members by larger identifier
+        sorted_members = sorted(members, key=lambda x: (-x[1]))
+        winner_alive = False
+        i = 0
+        while winner_alive is False:
+            winner_ref = self.host.lookup_url(sorted_members[i][0],
+                                              'Sequencer', 'Peer')
+            if winner_ref == self.proxy:
+                winner_alive = True
+            else:
+                try:
+                    # Test if the possible sequencer is alive
+                    winner_ref.get_url(timeout=2)
+                except TimeoutError as e:
+                    "Caught it"
+                    pass
+                winner_alive = True
+            i += 1
 
-        for member in members:
+        counter = self.group.get_count()
+        messages = self.group.get_n_messages()
+        winner_url = sorted_members[i-1][0]
+        # Set the new sequencer to every member
+        for member in sorted_members:
             if member[0] == self.url:
-                self.sequencer = self.host.lookup_url(
-                    winner[0], 'Sequencer', 'Peer')
-                # Sends the last counter and number of messages to the new
-                # sequencer
-                counter = self.group.get_count()
-                messages = self.group.get_n_messages()
-                print "election counter = ", counter
-                if winner[0] == self.url:
+                # Sends the last counter and number of messages
+                # to the new sequencer
+                if self.proxy == winner_ref:
+                    self.sequencer = winner_ref
                     self.count = counter
                     self.n_messages = messages
                 else:
-                    self.sequencer.set_counter(counter)
-                    self.sequencer.set_n_messages(messages)
+                    winner_ref.set_counter(counter)
+                    winner_ref.set_n_messages(messages)
+                    winner_ref.set_sequencer(winner_url)
             else:
                 peer_ref = self.host.lookup_url(member[0], 'Sequencer', 'Peer')
-                peer_ref.set_sequencer(winner[0])
-
-        self.group.set_sequencer(winner[0])
+                peer_ref.set_sequencer(winner_url)
+        self.group.set_sequencer(winner_url)
         # election_in_process is False
         self.group.election_finished()
 
