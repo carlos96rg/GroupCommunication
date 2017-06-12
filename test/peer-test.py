@@ -21,13 +21,13 @@ class TestPeer(unittest.TestCase):
 
     def test_sequencer(self):
         sequencer = self.host1.spawn('sequencer', Sequencer)
-        self.assertEqual(0, sequencer.get_counter())
         peer = self.host2.spawn('Peer', Sequencer)
         group = self.host1.spawn('group', Group)
         e1 = self.host1.lookup_url('http://127.0.0.1:1285/group', 'Group', 'Group')
         # Testing for joining, announcing and leaving the group
         peer.define_group(e1)
         sequencer.define_group(e1)
+        self.assertEqual(0, sequencer.get_counter())
         identifier = sequencer.join_me()
         self.assertEqual(identifier, 0)
         sleep(4)
