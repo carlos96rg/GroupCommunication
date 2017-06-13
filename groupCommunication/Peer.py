@@ -80,9 +80,9 @@ class Sequencer(Peer):
                           'receive',
                           'multicast',
                           'set_counter',
-                          'set_n_messages']
+                          'set_n_messages', 'set_winner']
     _ask = Peer._ask + ['get_counter', 'initiate_election']
-    _ref = Peer._ref + ['multicast', 'initiate_election']
+    _ref = Peer._ref + ['multicast', 'initiate_election', 'set_winner']
 
     def __init__(self):
         super(Sequencer, self).__init__()
@@ -177,11 +177,17 @@ class Sequencer(Peer):
                     print "Caught it"
             i += 1
         print "The winner is ", winner_ref
+        self.set_winner(sorted_members, i-1, winner_ref)
+        # election_in_process is False
+        self.group.election_finished()
+
+    # Tells every member the new sequencer and initialises it
+    def set_winner(self, members, winner_index, winner_ref):
         counter = self.group.get_count()
         messages = self.group.get_n_messages()
-        winner_url = sorted_members[i-1][0]
+        winner_url = members[winner_index][0]
         # Set the new sequencer to every member
-        for member in sorted_members:
+        for member in members:
             if member[0] == self.url:
                 # Sends the last counter and number of messages
                 # to the new sequencer
@@ -198,8 +204,6 @@ class Sequencer(Peer):
                 peer_ref = self.host.lookup_url(member[0], 'Sequencer', 'Peer')
                 peer_ref.set_sequencer(winner_url)
         self.group.set_sequencer(winner_url)
-        # election_in_process is False
-        self.group.election_finished()
 
     # Supports sequencer failure using bully election algorithm
     def multicast(self, message):

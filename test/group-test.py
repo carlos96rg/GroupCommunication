@@ -19,7 +19,7 @@ class GroupTest(unittest.TestCase):
 
         self.assertEqual(0, identifier)
 
-        sleep(26)
+        sleep(16)
         self.assertEqual([], group.get_members())
 
         identifier2 = group.join(peer.get_url())
