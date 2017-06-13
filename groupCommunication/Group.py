@@ -36,7 +36,7 @@ class Group(object):
             peer_ref.to_leave()
             peer_ref.kill_actor()
         else:
-            self.swarm[peer_n, identifier] = 10
+            self.swarm[peer_n, identifier] = 15
 
     def get_sequencer(self):
         return self.sequencer
@@ -60,7 +60,7 @@ class Group(object):
     # to cut the connexion
     def join(self, peer):
         print peer
-        self.swarm[peer, self.identifier] = 10
+        self.swarm[peer, self.identifier] = 15
         print peer, "has joined"
         self.n_peers += 1
         self.identifier += 1

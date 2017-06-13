@@ -112,7 +112,6 @@ class Sequencer(Peer):
         print "Count set to: ", self.count
 
     def join_me(self):
-        print "JOIN ME"
         self.identifier = self.group.join(self.url)
         print "Joined successfully"
         print "My identifier is: ", self.identifier
@@ -158,7 +157,7 @@ class Sequencer(Peer):
 
     # If the sequencer has fallen a new one is chosen
     def initiate_election(self):
-        print "Initiate election"
+        print "--Initiating election"
         members = self.group.get_members()
         # Sort members by larger identifier
         sorted_members = sorted(members, key=lambda x: (-x[1]))
@@ -219,7 +218,7 @@ class Sequencer(Peer):
                     # election_in_process = True
                     self.group.election_started()
                     self.initiate_election()
-                    print "election has ended"
+                    print "--The election has ended"
                     # self.multicast_bully(message)
                 else:
                     # Wait while the election is happening
@@ -268,7 +267,7 @@ class Lamport(Peer):
         for peer_n in self.group.get_members():
             # get_members returns url and identifier
             if peer_n[0] is self.url:
-                self.receive(message, num)
+                self.receive(message, num, self.id)
             else:
                 print peer_n[0]
                 peer_ref = self.host.lookup_url(peer_n[0], 'Lamport', 'Peer')
@@ -276,8 +275,6 @@ class Lamport(Peer):
         # print "Message delivered to everybody"
 
     def receive(self, message, num, sender):
-        if self.delay is True:
-            sleep(5)        # Force a delay for the 3rd peer and second message
         self.queue.append(tuple([message, num, sender]))
         print self.queue
         if self.count < num:    # Get the biggest number as your timestamp
@@ -290,6 +287,7 @@ class Lamport(Peer):
         self.waiting[message, num] = ack
         if len(self.group.get_members()) is 1:
             self.process_msg(message, sender)
+            del self.waiting[message, num]
         else:   # Then, send ack to the rest of the group
             for peer_url in self.group.get_members():
                 if peer_url[0] == self.url:
@@ -298,16 +296,20 @@ class Lamport(Peer):
                     people = self.host.lookup_url(peer_url[0],
                                                   'Lamport', 'Peer')
                     people.receive_ack(message, self.count, num)
-        print "WAITING ", self.waiting
-        print "MESSAGES ", self.messages
 
     def receive_ack(self, message, ack, timestamp):
+        # Force a delay for testing purposes
+        if self.identifier == 1 and timestamp == 1:
+            print "sleeping"
+            sleep(5)
         acks = self.waiting[message, timestamp]
         acks.append(self.count)
         self.waiting[message, timestamp] = acks
         if self.count < ack:    # Get the biggest number as your timestamp
             self.count = ack
         self.deliver_queue()
+        print "WAITING ", self.waiting
+        print "MESSAGES ", self.messages
         # print "And now my timestamp is:", self.count
         # We keep the message and the timestamp
         # print "I have this acks: ", len(acks)
