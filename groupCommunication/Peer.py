@@ -174,8 +174,8 @@ class Sequencer(Peer):
                     # Test if the possible sequencer is alive
                     winner_ref.get_url(timeout=2)
                     winner_alive = True
-                except TimeoutError as e:
-                    "Caught it"
+                except TimeoutError:
+                    print "Caught it"
             i += 1
         print "The winner is ", winner_ref
         counter = self.group.get_count()
@@ -210,7 +210,7 @@ class Sequencer(Peer):
         else:
             try:
                 num = self.sequencer.get_counter(timeout=3)
-            except TimeoutError as e:
+            except TimeoutError:
                 print "The sequencer has fallen"
                 # In case more than one member detects the failure at the same
                 # time
@@ -219,7 +219,7 @@ class Sequencer(Peer):
                     # election_in_process = True
                     self.group.election_started()
                     self.initiate_election()
-                    print "im out!!"
+                    print "election has ended"
                     # self.multicast_bully(message)
                 else:
                     # Wait while the election is happening

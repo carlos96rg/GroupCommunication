@@ -32,19 +32,11 @@ class Group(object):
         print self.n_peers
         if (peer_n, identifier) not in self.swarm:
             # If an inactive member returns without a join it gets removed
-            peer_ref = self.host.lookup_url(peer_n, 'Sequencer', 'Peer')
+            peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
             peer_ref.to_leave()
             peer_ref.kill_actor()
-
-        self.swarm[peer_n, identifier] = 10
-        peer_ref = self.host.lookup_url(peer_n, 'Peer', 'Peer')
-        if self.n_peers == 1:
-            peer_ref.set_sequencer(peer_n)
-            self.sequencer = peer_n
-            print peer_ref.get_id(), "is the sequencer now"
         else:
-            print self.sequencer, "is the sequencer"
-            peer_ref.set_sequencer(self.sequencer)
+            self.swarm[peer_n, identifier] = 10
 
     def get_sequencer(self):
         return self.sequencer
@@ -72,6 +64,14 @@ class Group(object):
         print peer, "has joined"
         self.n_peers += 1
         self.identifier += 1
+        peer_ref = self.host.lookup_url(peer, 'Peer', 'Peer')
+        if self.n_peers == 1:
+            peer_ref.set_sequencer(peer)
+            self.sequencer = peer
+            print peer, "is the sequencer now"
+        else:
+            print self.sequencer, "is the sequencer"
+            peer_ref.set_sequencer(self.sequencer)
         return self.identifier - 1
 
     def init_start(self):
@@ -84,7 +84,7 @@ class Group(object):
     def leave(self, peer_n, identifier):
         try:
             print peer_n, "with identifier", identifier, "is leaving"
-            if peer_n is self.sequencer:
+            if peer_n == self.sequencer:
                 self.sequencer = None
             del self.swarm[peer_n, identifier]
             self.n_peers -= 1
